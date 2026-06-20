@@ -24,8 +24,7 @@
         #score-text { top: 30px; right: 5%; font-size: 32px; font-family: monospace; letter-spacing: 2px; }
         #track-name { bottom: 30px; left: 5%; font-size: 24px; text-transform: uppercase; letter-spacing: 1px; }
 
-
-		#judgment-text { 
+        #judgment-text { 
             position: absolute; top: 52%; left: 50%; transform: translate(-50%, -50%) scale(1); 
             font-size: 42px; font-weight: 900; pointer-events: none; z-index: 20; 
             font-style: italic; letter-spacing: 2px;
@@ -50,7 +49,7 @@
         #combo-num { font-size: 75px; font-weight: 900; text-shadow: 0 0 25px var(--neon); font-family: monospace; font-style: italic; }
         #combo-label { font-size: 13px; color: var(--neon); letter-spacing: 6px; font-weight: 900; text-indent: 6px; margin-top: -5px; }
 
-		#pause-btn {
+        #pause-btn {
             position: absolute; top: 30px; left: 5%; width: 45px; height: 45px;
             border: 2px solid var(--neon); border-radius: 50%; background: rgba(0,0,0,0.4);
             cursor: pointer; z-index: 50; display: flex; justify-content: center; align-items: center;
@@ -229,7 +228,26 @@
                             audio.src = URL.createObjectURL(songData.audioBlob);
                             audio.load();
                             document.getElementById('track-name').innerText = songData.title;
-                            setupChart(JSON.parse(songData.chartString));
+                            
+                            // 🔥 【核心結構修復安全解析點】
+                            try {
+                                const rawChart = JSON.parse(songData.chartString);
+                                let finalNotes = [];
+                                
+                                // 判斷新舊格式：如果是包含 .notes 的物件，就抓取它的 notes 陣列
+                                if (rawChart && rawChart.notes && Array.isArray(rawChart.notes)) {
+                                    finalNotes = rawChart.notes;
+                                } else if (Array.isArray(rawChart)) {
+                                    // 相容沒有包裝過設定的舊純陣列 JSON 檔案
+                                    finalNotes = rawChart;
+                                }
+                                
+                                setupChart(finalNotes);
+                            } catch(err) {
+                                console.error("譜面 JSON 解析錯誤:", err);
+                                alert("自製譜面內部數據結構異常！");
+                                location.href = "gml.html";
+                            }
                         } else {
                             alert("找不到自製譜面數據！");
                             location.href = "gml.html";

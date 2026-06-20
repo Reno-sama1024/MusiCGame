@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>MusiCGame - Map Architect Fix</title>
+    <title>MusiCGame - Map Architect Pro</title>
     <style>
         :root { 
             --neon: #00ffff; 
@@ -18,374 +18,401 @@
         .control-panel { 
             width: 350px; height: 100%; background: rgba(10, 10, 25, 0.95); 
             border-right: 2px solid var(--neon); box-shadow: 5px 0 25px rgba(var(--neon-rgb), 0.2);
-            padding: 25px; display: flex; flex-direction: column; gap: 20px; z-index: 10;
+            padding: 25px; display: flex; flex-direction: column; gap: 18px; z-index: 10;
         }
-        .panel-title { font-size: 24px; font-weight: 900; color: var(--neon); letter-spacing: 2px; text-shadow: 0 0 10px var(--neon); }
         
-        .info-group { background: rgba(255,255,255,0.03); border-radius: 8px; padding: 12px; border: 1px solid rgba(var(--neon-rgb), 0.1); }
-        .info-label { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
-        .info-value { font-size: 18px; font-weight: bold; font-family: monospace; color: #fff; }
+        .nav-buttons { display: flex; gap: 10px; margin-bottom: -5px; }
+        .nav-btn {
+            flex: 1; padding: 8px; font-size: 12px; font-weight: bold; background: transparent;
+            color: #888; border: 1px solid rgba(255,255,255,0.15); border-radius: 4px; cursor: pointer; transition: all 0.2s;
+        }
+        .nav-btn:hover { border-color: var(--neon); color: var(--neon); box-shadow: 0 0 10px rgba(var(--neon-rgb), 0.3); }
+
+        .panel-title { font-size: 24px; font-weight: 900; color: var(--neon); text-shadow: 0 0 15px var(--neon); letter-spacing: 1px; margin-bottom: 5px; }
         
-        /* BPM 與音樂輸入框 */
-        .input-style {
-            width: 100%; padding: 8px; background: #000; border: 1px solid var(--neon);
-            color: #fff; border-radius: 4px; font-family: monospace; font-size: 14px; margin-top: 5px;
-        }
+        .section-title { font-size: 14px; color: #888; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px; }
 
-        .btn-core {
-            width: 100%; padding: 12px; font-size: 15px; font-weight: bold; background: transparent;
-            color: var(--neon); border: 2px solid var(--neon); border-radius: 6px; cursor: pointer;
-            transition: all 0.2s ease; text-transform: uppercase; letter-spacing: 1px;
+        .input-group { display: flex; flex-direction: column; gap: 6px; }
+        .input-group label { font-size: 12px; color: #aaa; }
+        .input-group input, .input-group select {
+            background: rgba(255,255,255,0.05); border: 1px solid rgba(var(--neon-rgb), 0.3);
+            padding: 10px; color: #fff; border-radius: 6px; font-size: 14px; transition: all 0.2s;
         }
-        .btn-core:hover { background: var(--neon); color: #000; box-shadow: 0 0 15px var(--neon); }
-        .btn-core.active { background: #ffaa00; color: #000; border-color: #ffaa00; box-shadow: 0 0 15px #ffaa00; }
+        .input-group input:focus { border-color: var(--neon); box-shadow: 0 0 10px rgba(var(--neon-rgb), 0.3); outline: none; }
 
-        /* 右側編輯畫布區 */
-        .editor-container { flex: 1; height: 100%; position: relative; background: #000; }
+        .file-label {
+            display: block; text-align: center; padding: 12px; background: rgba(var(--neon-rgb), 0.1);
+            border: 1px dashed var(--neon); color: var(--neon); border-radius: 6px; cursor: pointer;
+            font-weight: bold; font-size: 14px; transition: all 0.2s;
+        }
+        .file-label:hover { background: rgba(var(--neon-rgb), 0.2); box-shadow: 0 0 15px rgba(var(--neon-rgb), 0.3); }
+        input[type="file"] { display: none; }
+
+        .status-board {
+            background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 8px; padding: 15px; display: flex; flex-direction: column; gap: 8px;
+        }
+        .status-row { display: flex; justify-content: space-between; font-size: 13px; color: #ccc; }
+        .status-val { font-family: monospace; font-weight: bold; color: #fff; }
+        #ui-snap { color: var(--neon); text-shadow: 0 0 8px var(--neon); font-size: 14px; }
+
+        .btn {
+            width: 100%; padding: 12px; font-size: 14px; font-weight: bold; cursor: pointer;
+            border-radius: 6px; border: none; transition: all 0.2s;
+        }
+        .btn-primary { background: var(--neon); color: #000; font-weight: 900; box-shadow: 0 0 15px rgba(var(--neon-rgb), 0.3); }
+        .btn-primary:hover { opacity: 0.9; box-shadow: 0 0 25px var(--neon); }
+        .btn-secondary { background: rgba(255,255,255,0.08); color: #fff; border: 1px solid rgba(255,255,255,0.15); }
+        .btn-secondary:hover { background: rgba(255,255,255,0.15); border-color: #fff; }
+
+        .editor-container { flex: 1; height: 100%; position: relative; overflow: hidden; background: #020206; }
         canvas { display: block; width: 100%; height: 100%; }
 
-        /* JSON 導出彈窗 */
-        #export-modal {
-            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
-            background: rgba(0,0,0,0.85); backdrop-filter: blur(8px);
-            display: flex; justify-content: center; align-items: center; z-index: 100;
-            opacity: 0; pointer-events: none; transition: opacity 0.3s;
+        .tip-bar {
+            position: absolute; top: 15px; right: 20px; background: rgba(0,0,0,0.7);
+            padding: 8px 15px; border-radius: 20px; font-size: 12px; color: #aaa;
+            border: 1px solid rgba(255,255,255,0.1); pointer-events: none;
         }
-        #export-modal.active { opacity: 1; pointer-events: auto; }
-        .modal-window { background: rgba(15, 15, 35, 0.95); border: 2px solid var(--neon); border-radius: 12px; padding: 30px; width: 600px; text-align: center; }
-        textarea { width: 100%; height: 300px; background: #000; color: #00ff00; border: 1px solid #333; font-family: monospace; padding: 10px; margin: 15px 0; border-radius: 4px; resize: none; }
+        .tip-bar span { color: var(--neon); font-weight: bold; }
     </style>
 </head>
 <body>
 
     <div class="workspace">
         <div class="control-panel">
-            <div class="panel-title">MAP ARCHITECT</div>
+            <div class="nav-buttons">
+                <button class="nav-btn" onclick="location.href='MusiCGame.html'">🏠 主畫面</button>
+                <button class="nav-btn" onclick="location.href='gml.html'">🎵 選曲介面</button>
+            </div>
+
+            <div class="panel-title">Map Architect</div>
             
-            <div class="info-group">
-                <div class="info-label">BPM Setting (每分鐘拍數)</div>
-                <input type="number" id="bpm-input" class="input-style" value="140" onchange="updateBpm()">
+            <div class="section-title">1. 音樂與基礎設定</div>
+            <div class="input-group">
+                <label>音樂檔案 (.mp3 / .wav)</label>
+                <label for="audio-upload" class="file-label" id="audio-label">選擇音樂檔案</label>
+                <input type="file" id="audio-upload" accept="audio/*" onchange="loadAudio(this)">
+            </div>
+            <div class="input-group">
+                <label>歌曲名稱</label>
+                <input type="text" id="song-title" value="New_Track" placeholder="例如: Neo_Sanctuary">
+            </div>
+            <div class="input-group">
+                <label>歌曲 BPM</label>
+                <input type="number" id="song-bpm" value="120" min="30" max="400" onchange="updateGridSpacing()">
             </div>
 
-            <div class="info-group">
-                <div class="info-label">Import Audio (選擇本地音樂)</div>
-                <input type="file" id="audio-file" class="input-style" accept="audio/*" onchange="handleAudioImport(event)">
+            <div class="section-title">2. 譜面數據交互</div>
+            <div class="input-group">
+                <label>導入已有譜面 (.json)</label>
+                <label for="chart-upload" class="file-label" style="border-color:#aaa; color:#aaa; background:transparent;">導入 JSON 譜面</label>
+                <input type="file" id="chart-upload" accept=".json" onchange="importJSON(this)">
             </div>
 
-            <div class="info-group">
-                <div class="info-label">Current Time</div>
-                <div class="info-value" id="ui-time">00:00.00</div>
+            <div class="status-board">
+                <div class="status-row"><span>當前時間</span><span class="status-val" id="ui-time">00:00.00</span></div>
+                <div class="status-row"><span>總音符數</span><span class="status-val" id="ui-notes">0</span></div>
+                <div class="status-row"><span>吸附模式 (Ctrl+滾輪)</span><span class="status-val" id="ui-snap">16 分音符</span></div>
             </div>
 
-            <div class="info-group">
-                <div class="info-label">Notes Placed</div>
-                <div class="info-value" id="ui-notes">0</div>
-            </div>
-
-            <div style="margin-top: auto; display: flex; flex-direction: column; gap: 10px;">
-                <button class="btn-core" id="play-btn" onclick="togglePlayback()">PLAY (SPACE)</button>
-                <button class="btn-core" onclick="clearNotes()">CLEAR</button>
-                <button class="btn-core" onclick="exportJSON()">EXPORT JSON</button>
+            <div style="margin-top: auto; display:flex; flex-direction:column; gap:10px;">
+                <button class="btn btn-secondary" onclick="clearChart()">清空全部網格</button>
+                <button class="btn btn-primary" onclick="exportJSON()">導出 JSON 譜面</button>
             </div>
         </div>
 
-        <div class="editor-container" id="canvas-holder">
+        <div class="editor-container">
+            <div class="tip-bar">💡 操作提示：<span>空白鍵</span> 暫停/播放 | <span>滑鼠點擊</span> 放置/刪除音符 | <span>按住 Ctrl + 滾輪</span> 切換分音符</div>
             <canvas id="editorCanvas"></canvas>
         </div>
     </div>
 
-    <div id="export-modal">
-        <div class="modal-window">
-            <div class="panel-title" style="font-size:20px;">CHART JSON</div>
-            <textarea id="json-output" readonly></textarea>
-            <button class="btn-core" onclick="document.getElementById('export-modal').classList.remove('active')">CLOSE</button>
-        </div>
-    </div>
-
-    <audio id="editorAudio"></audio>
+    <audio id="editorAudio" loop></audio>
 
     <script>
-        // 設定與狀態大腦
-        let globalConfig = { scrollSpeed: 5.0, themeColor: '#00ffff', keyMaps: ['d', 'f', 'j', 'k'] };
-        let laneWidth = 100; // 軌道寬度
-        let laneX = [];
-        let chartData = []; 
+        // 🚀 速度設定：這裡將會與你的 play.html 一樣對接全局 scrollSpeed
+        let gameConfig = { scrollSpeed: 5.0, themeColor: '#00ffff', keyMaps: ['d', 'f', 'j', 'k'] };
+        let bpm = 120, chartData = [], audioTime = 0, isPlaying = false;
         
-        let audioTime = 0;
-        let isPlaying = false;
-        let bpm = 140;
-        let beatDuration = 60 / 140; // 每拍幾秒
+        const snapOptions = [4, 8, 12, 16, 24];
+        let snapIndex = 3; 
+        
+        let timelineOffset = 160; // 判定線底部位移，跟遊玩介面 160px 完全同步
+        let pixelsPerSecond = 200; // 基礎流速速度
 
         const audio = document.getElementById('editorAudio');
         const canvas = document.getElementById('editorCanvas');
         const ctx = canvas.getContext('2d');
 
-        // 🟢 強制初始化與重算畫布寬高（修正軌道不顯示的主因）
+        let laneWidth = 100, laneX = [];
+
         function resizeCanvas() {
-            const holder = document.getElementById('canvas-holder');
-            canvas.width = holder.clientWidth;
-            canvas.height = holder.clientHeight;
-            
-            // 重新計算 4 個軌道的 X 座標，確保它們絕對在畫布正中央
+            canvas.width = canvas.parentElement.clientWidth;
+            canvas.height = canvas.parentElement.clientHeight;
             const centerX = canvas.width / 2;
-            laneX = [
-                centerX - laneWidth * 2,
-                centerX - laneWidth,
-                centerX,
-                centerX + laneWidth
-            ];
-            
-            // 修正：無論有沒有音樂播放，一縮放或載入就強制刷出畫面
-            renderEditor();
+            laneWidth = 95; // 同步 play.html 的軌道寬度
+            laneX = [centerX - laneWidth * 2, centerX - laneWidth, centerX, centerX + laneWidth];
         }
 
-        function updateBpm() {
-            const val = parseFloat(document.getElementById('bpm-input').value);
-            if(val > 0) {
-                bpm = val;
-                beatDuration = 60 / bpm;
-                renderEditor();
-            }
-        }
-
-        // 🟢 如何導入音頻？使用 Web ObjectURL 實時注入
-        function handleAudioImport(event) {
-            const file = event.target.files[0];
-            if (file) {
-                const url = URL.createObjectURL(file);
-                audio.src = url;
-                audio.load();
-                audioTime = 0;
-                updateUI();
-                renderEditor();
-            }
-        }
-
-        // 🟢 如何編排按鍵？
-        // 模式 1：聽音樂時，實時按下鍵盤 D, F, J, K，直接在當前時間錄製音符！
-        window.addEventListener('keydown', (e) => {
-            const keyStr = e.key.toLowerCase();
-            const laneIdx = globalConfig.keyMaps.indexOf(keyStr);
-            
-            if (laneIdx !== -1) {
-                e.preventDefault();
-                const targetTime = parseFloat(audioTime.toFixed(2));
-                
-                // 檢查是否重複
-                const exist = chartData.find(n => Math.abs(n.time - targetTime) < 0.04 && n.lane === laneIdx);
-                if (!exist) {
-                    chartData.push({ time: targetTime, lane: laneIdx });
-                    chartData.sort((a, b) => a.time - b.time);
-                    updateUI();
-                    if (!isPlaying) renderEditor();
+        function applyGlobalSettings() {
+            const saved = localStorage.getItem('MusiCGame_Config');
+            if (saved) {
+                const config = JSON.parse(saved);
+                if (config.scrollSpeed) gameConfig.scrollSpeed = parseFloat(config.scrollSpeed);
+                if (config.keyMaps) gameConfig.keyMaps = config.keyMaps;
+                if (config.themeColor) {
+                    gameConfig.themeColor = config.themeColor;
+                    document.documentElement.style.setProperty('--neon', config.themeColor);
+                    let c = config.themeColor.replace('#','');
+                    if(c.length === 3) c = c.split('').map(x => x+x).join('');
+                    const r = parseInt(c.slice(0,2), 16), g = parseInt(c.slice(2,4), 16), b = parseInt(c.slice(4,6), 16);
+                    document.documentElement.style.setProperty('--neon-rgb', `${r}, ${g}, ${b}`);
                 }
             }
+            // 🔥 完美響應流速算式：與 play.html 完全一樣的動態速度換算
+            pixelsPerSecond = (canvas.height) * (gameConfig.scrollSpeed / 5.0);
+            if (pixelsPerSecond <= 0) pixelsPerSecond = 200; 
+        }
 
-            if (e.code === 'Space') {
+        function updateGridSpacing() {
+            bpm = parseFloat(document.getElementById('song-bpm').value) || 120;
+            if(!isPlaying) renderScene();
+        }
+
+        function loadAudio(input) {
+            const file = input.files[0];
+            if (file) {
+                audio.src = URL.createObjectURL(file);
+                document.getElementById('audio-label').innerText = file.name;
+                const defaultName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
+                document.getElementById('song-title').value = defaultName.replace(/\s+/g, '_');
+                if(!isPlaying) setTimeout(() => { renderScene(); }, 200);
+            }
+        }
+
+        function exportJSON() {
+            const songTitle = document.getElementById('song-title').value.trim() || "New_Track";
+            const packet = {
+                title: songTitle,
+                bpm: bpm,
+                notes: chartData.sort((a, b) => a.time - b.time)
+            };
+            const jsonStr = JSON.stringify(packet, null, 4);
+            const blob = new Blob([jsonStr], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `${songTitle}_chart.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function importJSON(input) {
+            const file = input.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const imported = JSON.parse(e.target.result);
+                    if (imported && imported.notes && Array.isArray(imported.notes)) {
+                        chartData = imported.notes;
+                        if (imported.title) document.getElementById('song-title').value = imported.title;
+                        if (imported.bpm) {
+                            document.getElementById('song-bpm').value = imported.bpm;
+                            bpm = imported.bpm;
+                        }
+                    } else if (Array.isArray(imported)) {
+                        chartData = imported;
+                    } else {
+                        alert("譜面格式不相符！");
+                        return;
+                    }
+                    chartData.forEach(n => { n.time = parseFloat(n.time); n.lane = parseInt(n.lane); });
+                    updateUI();
+                } catch(err) {
+                    alert("JSON 解析失敗！");
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function clearChart() {
+            if (confirm("確定要清空當前網格內的所有音符嗎？")) {
+                chartData = [];
+                updateUI();
+            }
+        }
+
+        // 🟢 徹底修復：滑鼠滾輪與 Ctrl + 滾輪的事件邏輯
+        window.addEventListener('wheel', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            // 只有當滑鼠在右側 Canvas 畫布區域內滾動時才攔截並控制
+            if (e.clientX >= rect.left && e.clientX <= rect.right) {
+                e.preventDefault(); 
+                
+                if (e.ctrlKey) {
+                    // 1. Ctrl + 滾輪 ➜ 切換分音符
+                    if (e.deltaY < 0) {
+                        if (snapIndex < snapOptions.length - 1) snapIndex++;
+                    } else {
+                        if (snapIndex > 0) snapIndex--;
+                    }
+                    document.getElementById('ui-snap').innerText = `${snapOptions[snapIndex]} 分音符`;
+                } else {
+                    // 2. 普通滾輪 ➜ 滾動時間軸時間
+                    let step = 0.05; // 每次滾動的基礎時間精細度
+                    if (audio.duration) {
+                        let nextTime = audioTime + (e.deltaY > 0 ? -step : step);
+                        if (nextTime < 0) nextTime = 0;
+                        if (nextTime > audio.duration) nextTime = audio.duration;
+                        audioTime = nextTime;
+                        audio.currentTime = nextTime;
+                    } else {
+                        // 即使沒傳音樂也能滾動模擬做譜
+                        audioTime += (e.deltaY > 0 ? -step : step);
+                        if (audioTime < 0) audioTime = 0;
+                    }
+                }
+                
+                // ⚡ 核心修復：不論是切網格還是滾動時間，完畢立刻強制刷新 UI 與畫面
+                updateUI();
+            }
+        }, { passive: false });
+
+        window.addEventListener('keydown', (e) => {
+            if (e.key === ' ' || e.keyCode === 32) {
                 e.preventDefault();
-                togglePlayback();
+                if (isPlaying) { 
+                    audio.pause(); 
+                    isPlaying = false; 
+                    audioTime = audio.currentTime;
+                    updateUI();
+                } else { 
+                    audio.currentTime = audioTime;
+                    audio.play(); 
+                    isPlaying = true; 
+                    requestAnimationFrame(editorLoop); 
+                }
             }
         });
 
-        // 模式 2：滑鼠點擊軌道網格放置/刪除音符；滾輪上下捲動時間軸！
         canvas.addEventListener('mousedown', (e) => {
             const rect = canvas.getBoundingClientRect();
             const mouseX = e.clientX - rect.left;
             const mouseY = e.clientY - rect.top;
 
-            const H = canvas.height;
-            const judgmentY = H - 120; // 判定線位置
-            const speed = H * (globalConfig.scrollSpeed * 0.15 + 0.3);
-
             let clickedLane = -1;
             for(let i=0; i<4; i++) {
-                if (mouseX >= laneX[i] && mouseX <= laneX[i] + laneWidth) {
-                    clickedLane = i;
-                    break;
-                }
+                if (mouseX >= laneX[i] && mouseX <= laneX[i] + laneWidth) { clickedLane = i; break; }
             }
+            if (clickedLane === -1) return;
 
-            if (clickedLane !== -1) {
-                // 反推計算滑鼠點擊的精確時間點
-                let clickedTime = audioTime + (judgmentY - mouseY) / speed;
-                
-                // 節奏對齊：吸附到最近的 1/4 拍（音遊編譜必備精密吸附）
-                const quarterBeat = beatDuration / 4;
-                clickedTime = Math.round(clickedTime / quarterBeat) * quarterBeat;
-                clickedTime = parseFloat(clickedTime.toFixed(3));
+            const targetYFromBottom = canvas.height - timelineOffset - mouseY;
+            const rawTime = audioTime + targetYFromBottom / pixelsPerSecond;
 
-                if (clickedTime >= 0) {
-                    const existIdx = chartData.findIndex(n => Math.abs(n.time - clickedTime) < 0.02 && n.lane === clickedLane);
-                    if (existIdx !== -1) {
-                        chartData.splice(existIdx, 1); // 如果有了就刪除（橡皮擦）
-                    } else {
-                        chartData.push({ time: clickedTime, lane: clickedLane }); // 沒有就新增
-                        chartData.sort((a, b) => a.time - b.time);
-                    }
-                    updateUI();
-                    renderEditor();
-                }
-            }
-        });
-
-        // 離線用滾輪捲動網格時間軸
-        canvas.addEventListener('wheel', (e) => {
-            e.preventDefault();
-            if (isPlaying) return; 
+            const currentSnap = snapOptions[snapIndex]; 
+            const beatDuration = 60 / bpm; 
+            const snapDuration = beatDuration / (currentSnap / 4); 
             
-            // 每次滾輪捲動 1/4 拍
-            const step = beatDuration / 4;
-            if (e.deltaY > 0) {
-                audioTime = Math.max(0, audioTime - step);
+            const snappedTime = Math.round(rawTime / snapDuration) * snapDuration;
+            if (snappedTime < 0) return;
+
+            const existingIdx = chartData.findIndex(n => n.lane === clickedLane && Math.abs(n.time - snappedTime) < 0.005);
+
+            if (existingIdx !== -1) {
+                chartData.splice(existingIdx, 1);
             } else {
-                audioTime = audioTime + step;
+                chartData.push({ time: parseFloat(snappedTime.toFixed(4)), lane: clickedLane });
             }
-            
-            if(audio.src) audio.currentTime = audioTime; // 同步音訊時間
             updateUI();
-            renderEditor();
         });
 
-        // ⚙️ 核心繪圖引擎：保證「先清空、後畫網格軌道、最後畫 Note」的嚴格順序
-        function gameLoop() {
+        function editorLoop() {
             if (!isPlaying) return;
             audioTime = audio.currentTime;
             updateUI();
-            renderEditor();
-            requestAnimationFrame(gameLoop);
+            requestAnimationFrame(editorLoop);
         }
 
-        function renderEditor() {
-            const W = canvas.width;
-            const H = canvas.height;
-            if (W === 0 || H === 0) return;
+        function renderScene() {
+            ctx.fillStyle = '#020206'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+            const H = canvas.height, W = canvas.width;
+            const judgmentY = H - timelineOffset;
 
-            const speed = H * (globalConfig.scrollSpeed * 0.15 + 0.3); 
-            const judgmentY = H - 120; 
+            // 繪製半透明軌道背景，方便視覺定位
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.01)';
+            ctx.fillRect(laneX[0], 0, laneWidth * 4, H);
 
-            // 1. 先用全黑填滿背景
-            ctx.fillStyle = '#050510';
-            ctx.fillRect(0, 0, W, H);
+            // 繪製軌道邊界
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.04)'; ctx.lineWidth = 1;
+            for(let i=0; i<=4; i++) {
+                const x = i === 4 ? laneX[3] + laneWidth : laneX[i];
+                ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+            }
 
-            // 2. 畫 4 個垂直軌道
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.02)'; // 軌道內側淡淡的顏色
-            ctx.strokeStyle = 'rgba(0, 255, 255, 0.15)'; // 軌道邊界霓虹線
-            ctx.lineWidth = 1;
-            for(let i = 0; i < 4; i++) {
-                ctx.fillRect(laneX[i], 0, laneWidth, H);
-                ctx.strokeRect(laneX[i], -10, laneWidth, H + 20);
+            // 繪製動態網格線
+            const currentSnap = snapOptions[snapIndex];
+            const beatDuration = 60 / bpm;
+            const snapDuration = beatDuration / (currentSnap / 4);
+
+            const startTime = Math.floor((audioTime - H / pixelsPerSecond) / snapDuration) * snapDuration;
+            const endTime = audioTime + H / pixelsPerSecond;
+
+            for (let t = startTime; t <= endTime; t += snapDuration) {
+                if (t < 0) continue;
+                const lineY = judgmentY - (t - audioTime) * pixelsPerSecond;
+                if (lineY < 0 || lineY > H) continue;
+
+                const isFullBeat = Math.abs((t / beatDuration) % 1) < 0.005;
+                ctx.strokeStyle = isFullBeat ? `rgba(${getComputedStyle(document.documentElement).getPropertyValue('--neon-rgb') || '0,255,255'}, 0.28)` : 'rgba(255, 255, 255, 0.07)';
+                ctx.lineWidth = isFullBeat ? 2 : 1;
                 
-                // 按鍵英文字提示 (D, F, J, K)
-                ctx.fillStyle = 'rgba(0, 255, 255, 0.4)';
-                ctx.font = 'bold 16px monospace';
-                ctx.fillText(globalConfig.keyMaps[i].toUpperCase(), laneX[i] + laneWidth/2 - 6, H - 30);
+                ctx.beginPath(); ctx.moveTo(laneX[0], lineY); ctx.lineTo(laneX[3]+laneWidth, lineY); ctx.stroke();
             }
 
-            // 3. 根據 BPM 計算並繪製「橫向節奏小節網格線」
-            // 紅色線：正拍 (1拍)；暗灰線：1/4 拍切分音
-            let startSec = audioTime - 1;
-            let endSec = audioTime + 3;
-            const quarter = beatDuration / 4;
+            // 主判定基準線
+            ctx.strokeStyle = gameConfig.themeColor; ctx.lineWidth = 3;
+            ctx.beginPath(); ctx.moveTo(laneX[0], judgmentY); ctx.lineTo(laneX[3] + laneWidth, judgmentY); ctx.stroke();
 
-            // 找到當前畫面上邊界最接近的拍子起點
-            let tStart = Math.floor(Math.max(0, startSec) / quarter) * quarter;
-
-            for (let t = tStart; t < endSec; t += quarter) {
-                const gridY = judgmentY - (t - audioTime) * speed;
-                if (gridY > 0 && gridY < H) {
-                    // 判斷是否為整拍
-                    const isFullBeat = Math.abs((t / beatDuration) % 1) < 0.01;
-                    ctx.strokeStyle = isFullBeat ? 'rgba(255, 0, 85, 0.4)' : 'rgba(255, 255, 255, 0.06)';
-                    ctx.lineWidth = isFullBeat ? 2 : 1;
-                    
-                    ctx.beginPath();
-                    ctx.moveTo(laneX[0], gridY);
-                    ctx.lineTo(laneX[3] + laneWidth, gridY);
-                    ctx.stroke();
-                }
+            // 鍵位提示
+            ctx.fillStyle = 'rgba(255,255,255,0.4)'; ctx.font = 'bold 15px monospace'; ctx.textAlign = 'center';
+            for(let i=0; i<4; i++) {
+                ctx.fillText(gameConfig.keyMaps[i].toUpperCase(), laneX[i] + laneWidth/2, judgmentY + 30);
             }
 
-            // 4. 繪製底部橫向基準「判定線」
-            ctx.strokeStyle = '#00ffff';
-            ctx.lineWidth = 4;
-            ctx.shadowBlur = 15;
-            ctx.shadowColor = '#00ffff';
-            ctx.beginPath(); 
-            ctx.moveTo(laneX[0], judgmentY); 
-            ctx.lineTo(laneX[3] + laneWidth, judgmentY); 
-            ctx.stroke();
-            ctx.shadowBlur = 0; // 重置發光，避免卡效能
-
-            // 5. 繪製編排進去的 Note 音符
+            // 繪製音符
             chartData.forEach(note => {
-                const noteY = judgmentY - (note.time - audioTime) * speed;
+                const noteY = judgmentY - (note.time - audioTime) * pixelsPerSecond;
                 if (noteY > -30 && noteY < H + 30) {
-                    ctx.fillStyle = '#00ffff';
-                    ctx.fillRect(laneX[note.lane] + 4, noteY - 10, laneWidth - 8, 20);
+                    ctx.fillStyle = gameConfig.themeColor;
+                    ctx.fillRect(laneX[note.lane] + 5, noteY - 10, laneWidth - 10, 20);
                     ctx.fillStyle = '#ffffff';
-                    ctx.fillRect(laneX[note.lane] + 20, noteY - 3, laneWidth - 40, 6);
+                    ctx.fillRect(laneX[note.lane] + 18, noteY - 3, laneWidth - 36, 6);
                 }
             });
         }
 
-        // 按鈕與播控
-        function togglePlayback() {
-            const btn = document.getElementById('play-btn');
-            if (isPlaying) {
-                isPlaying = false;
-                audio.pause();
-                btn.innerText = "PLAY (SPACE)";
-                btn.classList.remove('active');
-            } else {
-                isPlaying = true;
-                if(audio.src) audio.play();
-                btn.innerText = "PAUSE (SPACE)";
-                btn.classList.add('active');
-                requestAnimationFrame(gameLoop);
-            }
-        }
-
-        function clearNotes() {
-            if (confirm("確定清空全部音符？")) { chartData = []; updateUI(); renderEditor(); }
-        }
-
-        function exportJSON() {
-            // 1. 將譜面數據轉為 JSON 字串
-            const jsonStr = JSON.stringify(chartData, null, 4);
-            
-            // 2. 建立一個 Blob (二進位大型物件) 包裹 JSON 數據
-            const blob = new Blob([jsonStr], { type: "application/json" });
-            
-            // 3. 建立一個虛擬的下載連結
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            
-            // 4. 設定檔名，預設叫 chart.json
-            a.href = url;
-            a.download = "chart.json";
-            
-            // 5. 模擬點擊，觸發瀏覽器下載
-            document.body.appendChild(a);
-            a.click();
-            
-            // 6. 清理記憶體
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-        }
-
-
         function updateUI() {
-            const m = Math.floor(audioTime / 60), s = Math.floor(audioTime % 60), cs = Math.floor((audioTime % 1) * 100);
+            const t = audioTime;
+            const m = Math.floor(t / 60), s = Math.floor(t % 60), cs = Math.floor((t % 1) * 100);
             document.getElementById('ui-time').innerText = `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}.${String(cs).padStart(2,'0')}`;
             document.getElementById('ui-notes').innerText = chartData.length;
+            renderScene(); // 🟢 強制重繪畫面，確保滾動和切網格時畫面 100% 即時渲染
         }
 
-        audio.addEventListener('timeupdate', () => { if(isPlaying) audioTime = audio.currentTime; });
-        window.addEventListener('resize', resizeCanvas);
+        window.addEventListener('resize', () => { 
+            resizeCanvas(); 
+            applyGlobalSettings();
+            renderScene(); 
+        });
         
         window.onload = () => {
-            // 確保第一時間強行刷出畫布尺寸與背景
-            resizeCanvas(); 
+            resizeCanvas();
+            applyGlobalSettings();
+            updateGridSpacing();
+            renderScene();
         };
     </script>
 </body>
