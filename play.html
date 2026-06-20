@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>MusiCGame_Play</title>
+    <style>
+        :root { 
+            --neon: #00ffff; 
+            --neon-rgb: 0, 255, 255;
+            --bg-dark: #000000; 
+        }
+        * { margin:0; padding:0; box-sizing:border-box; user-select: none; }
+        body, html { width: 100%; height: 100%; background: var(--bg-dark); font-family: "Microsoft JhengHei", sans-serif; color: #fff; overflow: hidden; }
+
+        canvas { 
+            display: block; width: 100vw; height: 100vh; 
+            opacity: 0; 
+            transition: opacity 0.5s ease; 
+        }
+        canvas.fade-in { opacity: 1; }
+
+        /* ==================== 📊 完美保留的 HUD 配置 ==================== */
+        .hud { position: absolute; font-weight: bold; pointer-events: none; z-index: 20; color: var(--neon); text-shadow: 0 0 12px var(--neon); }
+        #score-text { top: 30px; right: 5%; font-size: 32px; font-family: monospace; letter-spacing: 2px; }
+        #track-name { bottom: 30px; left: 5%; font-size: 24px; text-transform: uppercase; letter-spacing: 1px; }
+
+        /* 🟢 ✨ 判定字體全新重構：固定位置、跳出衝擊感、0.5秒自動淡出動畫 */
+        #judgment-text { 
+            position: absolute; top: 52%; left: 50%; transform: translate(-50%, -50%) scale(1); 
+            font-size: 42px; font-weight: 900; pointer-events: none; z-index: 20; 
+            font-style: italic; letter-spacing: 2px;
+            opacity: 0;
+        }
+        #judgment-text.animate-pop {
+            animation: judgePop 0.5s cubic-bezier(0.12, 0.85, 0.5, 1) forwards;
+        }
+        @keyframes judgePop {
+            0% { opacity: 1; transform: translate(-50%, -50%) scale(1.3); }
+            15% { transform: translate(-50%, -50%) scale(1); }
+            60% { opacity: 1; }
+            100% { opacity: 0; transform: translate(-50%, -50%) scale(0.95); }
+        }
+        
+        #combo-box { 
+            position: absolute; top: 18%; left: 50%; transform: translateX(-50%) scale(0.6); 
+            text-align: center; pointer-events: none; z-index: 20; 
+            opacity: 0; transition: all 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275); 
+        }
+        #combo-box.show { opacity: 1; transform: translateX(-50%) scale(1); }
+        #combo-num { font-size: 75px; font-weight: 900; text-shadow: 0 0 25px var(--neon); font-family: monospace; font-style: italic; }
+        #combo-label { font-size: 13px; color: var(--neon); letter-spacing: 6px; font-weight: 900; text-indent: 6px; margin-top: -5px; }
+
+        /* ==================== ⏸️ 暫停控制面板 ==================== */
+        #pause-btn {
+            position: absolute; top: 30px; left: 5%; width: 45px; height: 45px;
+            border: 2px solid var(--neon); border-radius: 50%; background: rgba(0,0,0,0.4);
+            cursor: pointer; z-index: 50; display: flex; justify-content: center; align-items: center;
+            box-shadow: 0 0 10px rgba(var(--neon-rgb), 0.3), inset 0 0 5px rgba(var(--neon-rgb), 0.2);
+            transition: all 0.2s;
+        }
+        #pause-btn:hover { background: var(--neon); box-shadow: 0 0 20px var(--neon); }
+        #pause-btn::before, #pause-btn::after {
+            content: ""; width: 3px; height: 16px; background: var(--neon); transition: all 0.2s;
+        }
+        #pause-btn::before { margin-right: 4px; }
+        #pause-btn:hover::before, #pause-btn:hover::after { background: #000; }
+
+        #pause-overlay {
+            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(0,0,0,0.85); backdrop-filter: blur(8px); z-index: 90;
+            display: none; flex-direction: column; justify-content: center; align-items: center; gap: 25px;
+        }
+        #pause-overlay.active { display: flex; }
+        .pause-title { font-size: 42px; font-weight: 900; color: var(--neon); text-shadow: 0 0 20px var(--neon); letter-spacing: 4px; margin-bottom: 20px; }
+        .pause-menu-btn {
+            width: 220px; padding: 12px; font-size: 18px; font-weight: bold; background: transparent;
+            color: #fff; border: 2px solid rgba(255,255,255,0.1); border-radius: 6px; cursor: pointer; transition: all 0.2s;
+        }
+        .pause-menu-btn:hover {
+            border-color: var(--neon); color: var(--neon); box-shadow: 0 0 15px rgba(var(--neon-rgb), 0.4); transform: translateY(-2px);
+        }
+        
+        #loading-mask {
+            position: absolute; top:0; left:0; width:100vw; height:100vh; background:#000;
+            display:flex; justify-content:center; align-items:center; z-index:150; font-size:20px; color:var(--neon);
+        }
+    </style>
+</head>
+<body>
+
+    <div id="loading-mask">正在載入譜面驅動核心...</div>
+
+    <button id="pause-btn" onclick="togglePause()"></button>
+
+    <div id="pause-overlay">
+        <div class="pause-title">PAUSED</div>
+        <button class="pause-menu-btn" onclick="togglePause()">RESUME</button>
+        <button class="pause-menu-btn" onclick="restartGame()">RESTART</button>
+        <button class="pause-menu-btn" onclick="location.href='gml.html'">SELECT SONG</button>
+    </div>
+
+    <div class="hud" id="score-text">0000000</div>
+    <div class="hud" id="track-name">READY</div>
+    <div id="combo-box">
+        <div id="combo-num">0</div>
+        <div id="combo-label">COMBO</div>
+    </div>
+    <div id="judgment-text"></div>
+
+    <canvas id="gameCanvas"></canvas>
+    <audio id="gameAudio"></audio>
+
+    <script>
+        let gameConfig = { scrollSpeed: 5.0, themeColor: '#00ffff', keyMaps: ['d', 'f', 'j', 'k'] };
+        let laneWidth = 95, laneX = [], audioTime = 0, isPlaying = false, isPaused = false, score = 0, combo = 0, chartData = [];
+        
+        // 用來追蹤當前哪些按鍵被按著，以便繪製向上漸層的打擊光暈
+        let activeLanes = [false, false, false, false];
+
+        const audio = document.getElementById('gameAudio');
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        function resizeCanvas() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; calculateLanes(); }
+        function calculateLanes() {
+            const centerX = window.innerWidth / 2;
+            laneX = [centerX - laneWidth * 2, centerX - laneWidth, centerX, centerX + laneWidth];
+        }
+
+        function applyGlobalSettings() {
+            const saved = localStorage.getItem('MusiCGame_Config');
+            if (saved) {
+                const config = JSON.parse(saved);
+                if (config.scrollSpeed) gameConfig.scrollSpeed = parseFloat(config.scrollSpeed);
+                if (config.keyMaps) gameConfig.keyMaps = config.keyMaps;
+                if (config.themeColor) {
+                    gameConfig.themeColor = config.themeColor;
+                    document.documentElement.style.setProperty('--neon', config.themeColor);
+                    let c = config.themeColor.replace('#','');
+                    if(c.length === 3) c = c.split('').map(x => x+x).join('');
+                    const r = parseInt(c.slice(0,2), 16), g = parseInt(c.slice(2,4), 16), b = parseInt(c.slice(4,6), 16);
+                    document.documentElement.style.setProperty('--neon-rgb', `${r}, ${g}, ${b}`);
+                }
+            }
+        }
+
+        function loadGame() {
+            const params = new URLSearchParams(window.location.search);
+            const songId = params.get('id') || "test_sanctuary";
+
+            if (songId.startsWith("custom_")) {
+                const request = indexedDB.open("MusiCGame_Storage", 2);
+                request.onsuccess = (e) => {
+                    const db = e.target.result;
+                    const transaction = db.transaction(["custom_songs"], "readonly");
+                    const getRequest = transaction.objectStore("custom_songs").get(songId);
+
+                    getRequest.onsuccess = () => {
+                        const songData = getRequest.result;
+                        if (songData) {
+                            audio.src = URL.createObjectURL(songData.audioBlob);
+                            audio.load();
+                            document.getElementById('track-name').innerText = songData.title;
+                            chartData = JSON.parse(songData.chartString);
+                            chartData.forEach(n => n.hit = false);
+                            
+                            document.getElementById('loading-mask').style.display = 'none';
+                            canvas.classList.add('fade-in');
+                            setTimeout(startGame, 1000);
+                        } else {
+                            alert("找不到自製譜面數據！");
+                            location.href = "gml.html";
+                        }
+                    };
+                };
+            } else {
+                document.getElementById('track-name').innerText = songId === "test_percussion" ? "Cyber Percussion" : "Neo Sanctuary";
+                chartData = [
+                    { time: 1.5, lane: 0 }, { time: 2.0, lane: 1 }, { time: 2.5, lane: 2 }, { time: 3.0, lane: 3 },
+                    { time: 4.0, lane: 1 }, { time: 4.5, lane: 2 }, { time: 5.0, lane: 0 }, { time: 5.5, lane: 3 }
+                ];
+                chartData.forEach(n => n.hit = false);
+                document.getElementById('loading-mask').style.display = 'none';
+                canvas.classList.add('fade-in');
+                setTimeout(startGame, 1000);
+            }
+        }
+
+        function startGame() {
+            score = 0; combo = 0; isPaused = false;
+            document.getElementById('score-text').innerText = "0000000";
+            audio.play().then(() => { isPlaying = true; requestAnimationFrame(gameLoop); });
+        }
+
+        function togglePause() {
+            if (!isPlaying) return;
+            isPaused = !isPaused;
+            const overlay = document.getElementById('pause-overlay');
+            if (isPaused) {
+                audio.pause();
+                overlay.classList.add('active');
+            } else {
+                audio.play();
+                overlay.classList.remove('active');
+                requestAnimationFrame(gameLoop);
+            }
+        }
+
+        function restartGame() {
+            document.getElementById('pause-overlay').classList.remove('active');
+            audio.currentTime = 0;
+            chartData.forEach(n => n.hit = false);
+            document.getElementById('combo-box').classList.remove('show');
+            triggerJudgment("", "#fff");
+            activeLanes = [false, false, false, false];
+            startGame();
+        }
+
+        function gameLoop() {
+            if (!isPlaying || isPaused) return;
+            audioTime = audio.currentTime;
+            renderScene();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function renderScene() {
+            const W = canvas.width, H = canvas.height;
+            const speed = H * (gameConfig.scrollSpeed / 5.0); 
+            const judgmentY = H - 160;
+
+            ctx.fillStyle = '#000000'; ctx.fillRect(0, 0, W, H);
+
+            // 🟢 🌟 繪製按鍵按住時的打擊效果：由判定線往上方逐漸透明的漸層，完全跟隨全局變色，不添加任何高亮
+            for(let i = 0; i < 4; i++) {
+                if (activeLanes[i]) {
+                    const grad = ctx.createLinearGradient(0, judgmentY, 0, judgmentY - 250); // 往上擴散250px
+                    grad.addColorStop(0, `rgba(${getComputedStyle(document.documentElement).getPropertyValue('--neon-rgb')}, 0.25)`);
+                    grad.addColorStop(1, `rgba(${getComputedStyle(document.documentElement).getPropertyValue('--neon-rgb')}, 0)`);
+                    ctx.fillStyle = grad;
+                    ctx.fillRect(laneX[i], judgmentY - 250, laneWidth, 250);
+                }
+            }
+
+            // 垂直音軌邊界線
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
+            for(let i = 0; i < 4; i++) ctx.strokeRect(laneX[i], 0, laneWidth, H);
+
+            // 霓虹判定基準線
+            ctx.strokeStyle = gameConfig.themeColor; ctx.lineWidth = 4;
+            ctx.beginPath(); ctx.moveTo(laneX[0], judgmentY); ctx.lineTo(laneX[3] + laneWidth, judgmentY); ctx.stroke();
+
+            // 繪製下落 Note
+            chartData.forEach(note => {
+                if (note.hit) return;
+                const noteY = judgmentY - (note.time - audioTime) * speed;
+
+                if (noteY > -50 && noteY < H) {
+                    ctx.fillStyle = gameConfig.themeColor;
+                    ctx.fillRect(laneX[note.lane] + 4, noteY - 12, laneWidth - 8, 24);
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(laneX[note.lane] + 18, noteY - 4, laneWidth - 36, 8);
+                }
+
+                // 🟢 🌟 漏接 Miss 判定：只要超過判定線 +100ms（0.10秒）沒打，就直接強制漏接
+                if (!note.hit && audioTime - note.time > 0.10) {
+                    note.hit = true; combo = 0;
+                    triggerJudgment("MISS", "#ff0055");
+                    document.getElementById('combo-box').classList.remove('show');
+                }
+            });
+        }
+
+        // ==================== ⌨️ 按鍵與 ESC 監聽處理機制 ====================
+        window.addEventListener('keydown', (e) => {
+            // 🟢 🌟 細節修正 1：支援按下 ESC 鍵無縫切換暫停/繼續
+            if (e.key === 'Escape' || e.keyCode === 27) {
+                e.preventDefault();
+                togglePause();
+                return;
+            }
+
+            if (!isPlaying || isPaused) return;
+            const laneIdx = gameConfig.keyMaps.indexOf(e.key.toLowerCase());
+            if (laneIdx !== -1) {
+                // 標記該音軌為被按下狀態，觸發漸層渲染
+                activeLanes[laneIdx] = true;
+
+                // 🟢 🌟 細節修正 2：收緊核心打擊判定大小至 ±100ms (0.10秒)
+                let targetNote = chartData.find(n => n.lane === laneIdx && !n.hit);
+                if (targetNote) {
+                    const diff = Math.abs(targetNote.time - audioTime);
+                    if (diff <= 0.10) { // 精確鎖定在 ±100ms 區塊內
+                        targetNote.hit = true;
+                        score += 1000; combo++;
+                        triggerJudgment("PERFECT", "#ffcc00");
+                    } else if (diff > 0.10 && diff <= 0.25) {
+                        // 如果在 100ms 之外但在可按到的寬容範圍內，則直接算敲空 Miss
+                        targetNote.hit = true; combo = 0;
+                        triggerJudgment("MISS", "#ff0055");
+                    }
+                    
+                    document.getElementById('score-text').innerText = String(score).padStart(7, '0');
+                    
+                    const comboContainer = document.getElementById('combo-box');
+                    if (combo >= 1) {
+                        document.getElementById('combo-num').innerText = combo;
+                        comboContainer.classList.add('show');
+                    } else {
+                        comboContainer.classList.remove('show');
+                    }
+                }
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            if (!isPlaying) return;
+            const laneIdx = gameConfig.keyMaps.indexOf(e.key.toLowerCase());
+            if (laneIdx !== -1) {
+                // 放開按鍵時關閉該音軌的漸層光暈
+                activeLanes[laneIdx] = false;
+            }
+        });
+
+        // 🟢 🌟 細節修正 3：每次觸發時先重設 Class，讓 CSS 重新播放 0.5 秒的彈出與淡出動畫
+        function triggerJudgment(text, color) {
+            const txtEl = document.getElementById('judgment-text');
+            if (!text) {
+                txtEl.innerText = "";
+                txtEl.className = "";
+                return;
+            }
+            txtEl.innerText = text; 
+            txtEl.style.color = color;
+            txtEl.style.textShadow = `0 0 15px ${color}`;
+            
+            // 強制重繪刷新動畫
+            txtEl.classList.remove('animate-pop');
+            void txtEl.offsetWidth; 
+            txtEl.classList.add('animate-pop');
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+        window.onload = () => {
+            resizeCanvas();
+            applyGlobalSettings();
+            loadGame();
+        };
+    </script>
+</body>
+</html>

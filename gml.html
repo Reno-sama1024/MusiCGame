@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>MusiCGame - Music List</title>
+    <style>
+        :root { 
+            --neon: #00ffff; 
+            --neon-rgb: 0, 255, 255;
+            --bg-dark: #000000; 
+            transition: --neon 0.5s ease;
+        }
+        * { margin:0; padding:0; box-sizing:border-box; user-select: none; }
+        body, html { width: 100%; height: 100%; background: var(--bg-dark); font-family: \"Microsoft JhengHei\", sans-serif; color: #fff; overflow-y: auto; }
+
+        .container { max-width: 900px; margin: 50px auto; padding: 20px; }
+        
+        /* 頂部列：包含返回主頁按鈕 */
+        .header-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 40px; gap: 15px; }
+        .page-title { font-size: 36px; font-weight: bold; color: var(--neon); text-shadow: 0 0 15px var(--neon); letter-spacing: 2px; flex: 1; }
+        
+        .btn-group { display: flex; gap: 15px; }
+
+        .neon-btn {
+            padding: 10px 25px; font-size: 16px; font-weight: bold; background: transparent;
+            color: var(--neon); border: 2px solid var(--neon); border-radius: 6px; cursor: pointer;
+            transition: all 0.3s; text-shadow: 0 0 5px var(--neon); box-shadow: inset 0 0 5px rgba(var(--neon-rgb), 0.2);
+        }
+        .neon-btn:hover { background: var(--neon); color: #000; box-shadow: 0 0 20px var(--neon); text-shadow: none; }
+        
+        #import-input { display: none; }
+
+        .song-list { display: flex; flex-direction: column; gap: 15px; }
+        .song-item {
+            background: rgba(255, 255, 255, 0.03); padding: 20px 30px; border-radius: 12px;
+            display: flex; justify-content: space-between; align-items: center;
+            cursor: pointer; transition: all 0.2s ease; border: 1px solid rgba(var(--neon-rgb), 0.1);
+        }
+        .song-item:hover { 
+            background: rgba(var(--neon-rgb), 0.08); border-color: var(--neon);
+            box-shadow: 0 0 15px rgba(var(--neon-rgb), 0.2); transform: scale(1.01);
+        }
+        
+        .song-info { display: flex; flex-direction: column; gap: 4px; }
+        /* 規範要求：音樂名稱 30px */
+        .song-title { font-size: 30px; font-weight: bold; color: #fff; letter-spacing: 1px; }
+        /* 規範要求：時長在名稱下方 15px */
+        .song-duration { font-size: 15px; color: #888; font-family: monospace; }
+        .song-artist { font-size: 16px; color: #aaa; }
+        
+        /* 規範要求：BPM 20px */
+        .song-meta { font-size: 20px; font-weight: bold; color: var(--neon); text-shadow: 0 0 8px var(--neon); font-family: monospace; }
+
+        .delete-btn {
+            background: transparent; border: none; color: #ff0055; font-size: 14px; cursor: pointer;
+            padding: 5px 10px; border-radius: 4px; border: 1px solid transparent; transition: all 0.2s; margin-left: 20px;
+        }
+        .delete-btn:hover { background: #ff0055; color: #000; border-color: #ff0055; box-shadow: 0 0 10px #ff0055; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="header-bar">
+            <div class="page-title">SONG SELECT</div>
+            <div class="btn-group">
+                <button class="neon-btn" onclick="triggerImport()">IMPORT MAP</button>
+                <button class="neon-btn" onclick="location.href='MusiCGame.html'">BACK</button>
+            </div>
+        </div>
+
+        <input type="file" id="import-input" multiple accept="audio/*, .json" onchange="handleImportedFiles(event)">
+
+        <div class="song-list" id="listContainer">
+            </div>
+    </div>
+
+    <audio id="duration-parser" style="display:none;"></audio>
+
+    <script>
+        // 1. 完美保留你原檔的靜態歌曲庫
+        const songDb = [
+            { id: "test_sanctuary", title: "Neo Sanctuary", artist: "MusiCGame Core", bpm: 140 },
+            { id: "test_percussion", title: "Cyber Percussion", artist: "Experimental Drum", bpm: 165 }
+        ];
+
+        let db;
+
+        // 2. 完美保留原本的自動全局變色核心邏輯
+        function loadGlobalConfig() {
+            const saved = localStorage.getItem('MusiCGame_Config');
+            if (saved) {
+                const config = JSON.parse(saved);
+                if (config.themeColor) {
+                    document.documentElement.style.setProperty('--neon', config.themeColor);
+                    let c = config.themeColor.replace('#','');
+                    if(c.length === 3) c = c.split('').map(x => x+x).join('');
+                    const r = parseInt(c.slice(0,2), 16), g = parseInt(c.slice(2,4), 16), b = parseInt(c.slice(4,6), 16);
+                    document.documentElement.style.setProperty('--neon-rgb', `${r}, ${g}, ${b}`);
+                }
+            }
+        }
+
+        // 初始化 IndexedDB
+        function initDb() {
+            const request = indexedDB.open("MusiCGame_Storage", 2);
+            request.onupgradeneeded = (e) => {
+                let database = e.target.result;
+                if (!database.objectStoreNames.contains("custom_songs")) {
+                    database.createObjectStore("custom_songs", { keyPath: "id" });
+                }
+            };
+            request.onsuccess = (e) => {
+                db = e.target.result;
+                renderSongs(); // 資料庫就位後再跑渲染
+            };
+        }
+
+        function triggerImport() {
+            document.getElementById('import-input').click();
+        }
+
+        // 處理外部拖入或上傳的 音樂+譜面
+        function handleImportedFiles(event) {
+            const files = event.target.files;
+            if (files.length === 0) return;
+
+            let audioFile, chartFile;
+            for (let file of files) {
+                const name = file.name.toLowerCase();
+                if (file.type.startsWith('audio/') || name.endsWith('.mp3') || name.endsWith('.wav')) {
+                    audioFile = file;
+                } else if (name.endsWith('.json')) {
+                    chartFile = file;
+                }
+            }
+
+            if (!audioFile || !chartFile) {
+                alert("請同時選取一個音樂檔(.mp3)和一個譜面檔(.json)一起導入！");
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    JSON.parse(e.target.result); // 驗證格式
+                    const inputBpm = prompt(`偵測到自製譜面，請輸入此歌曲的 BPM 數值：`, "140");
+                    let songBpm = inputBpm && !isNaN(inputBpm) ? parseInt(inputBpm) : 140;
+
+                    // 解析音樂時長
+                    const parser = document.getElementById('duration-parser');
+                    parser.src = URL.createObjectURL(audioFile);
+                    parser.onloadedmetadata = () => {
+                        const totalSeconds = Math.floor(parser.duration);
+                        const m = Math.floor(totalSeconds / 60);
+                        const s = totalSeconds % 60;
+                        const durationStr = `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+                        
+                        const songId = "custom_" + Date.now();
+                        const newSongData = {
+                            id: songId,
+                            title: audioFile.name.replace(/\.[^/.]+$/, ""),
+                            artist: "自製導入曲目",
+                            duration: durationStr,
+                            bpm: songBpm,
+                            audioBlob: audioFile,
+                            chartString: e.target.result,
+                            isCustom: true
+                        };
+
+                        const transaction = db.transaction(["custom_songs"], "readwrite");
+                        transaction.objectStore("custom_songs").put(newSongData);
+                        transaction.oncomplete = () => {
+                            alert(`🎉 譜面【${newSongData.title}】成功導入！`);
+                            renderSongs();
+                        };
+                    };
+                } catch(err) {
+                    alert("JSON 譜面解析錯誤！");
+                }
+            };
+            reader.readAsText(chartFile);
+        }
+
+        // 3. 完美整合的渲染機制（原生曲目+自製曲目）
+        function renderSongs() {
+            const container = document.getElementById('listContainer');
+            
+            const transaction = db.transaction(["custom_songs"], "readonly");
+            const store = transaction.objectStore("custom_songs");
+            const getAllRequest = store.getAll();
+
+            getAllRequest.onsuccess = () => {
+                const customSongs = getAllRequest.result || [];
+                
+                // 渲染原生曲目
+                let html = songDb.map(song => `
+                    <div class="song-item" onclick="playSong('${song.id}')">
+                        <div class="song-info">
+                            <div class="song-title">${song.title}</div>
+                            <div class="song-artist">${song.artist}</div>
+                        </div>
+                        <div class="song-meta">BPM: ${song.bpm}</div>
+                    </div>
+                `).join('');
+
+                // 追加渲染符合尺寸規格的自製曲目
+                html += customSongs.map(song => `
+                    <div class="song-item" onclick="playSong('${song.id}')">
+                        <div class="song-info">
+                            <div class="song-title">${song.title}</div>
+                            <div class="song-duration">LENGTH: ${song.duration}</div>
+                        </div>
+                        <div style="display:flex; align-items:center;">
+                            <div class="song-meta">BPM: ${song.bpm}</div>
+                            <button class="delete-btn" onclick="deleteSong(event, '${song.id}')">DELETE</button>
+                        </div>
+                    </div>
+                `).join('');
+
+                container.innerHTML = html;
+            };
+        }
+
+        function playSong(songId) {
+            location.href = `play.html?id=${songId}`;
+        }
+
+        function deleteSong(event, songId) {
+            event.stopPropagation();
+            if (confirm("確定要刪除這首自製譜面嗎？")) {
+                const transaction = db.transaction(["custom_songs"], "readwrite");
+                transaction.objectStore("custom_songs").delete(songId);
+                transaction.oncomplete = () => renderSongs();
+            }
+        }
+
+        window.onload = () => {
+            loadGlobalConfig();
+            initDb();
+        };
+    </script>
+</body>
+</html>
